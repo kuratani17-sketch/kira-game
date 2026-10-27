@@ -48,7 +48,7 @@ def view(r,p):
       'players':[player_view(q) for q in r['players']],
       'myRole':p['role'],'known':[qid for qid in aware if qid!=p['id']],
       'investigations':p['investigations'],
-      'log':r['log'],'publicInfo':r.get('publicInfo',[]),'reveal':r['reveal'],'winner':r['winner'],
+      'log':r['log'],'publicInfo':r.get('publicInfo',[]),'dailyNominations':r.get('dailyNominations',[]),'reveal':r['reveal'],'winner':r['winner'],
       'hasActed':p['id'] in r['actions'],'lastGuard':p['lastGuard'],
       'hostOptions':r['options'], 'next':r.get('next', '')
     }
@@ -60,8 +60,8 @@ def options_from(raw):
     g = max(0,min(n-2,int(raw.get('gevanni',0))))
     if f+w+g > n-3: raise ValueError('捜査員を最低1人残してください')
     return {'size':n,'follower':f,'watari':w,'gevanni':g,
-            'discussion':max(15,min(900,int(raw.get('discussion',90)))),
-            'night':max(10,min(300,int(raw.get('night',30)))),
+            'discussion':max(15,min(900,int(raw.get('discussion',40)))),
+            'night':max(10,min(300,int(raw.get('night',20)))),
             'revealRolesOnDeath':raw.get('revealRolesOnDeath',True) is not False}
 
 def declare(r, winner, reason):
@@ -72,8 +72,8 @@ def declare(r, winner, reason):
 def finish_if(r, p, method):
     if p['role']=='kira': declare(r,'l',f'キラ「{p["name"]}」が{method}された');return True
     if p['role']=='l': declare(r,'kira',f'L「{p["name"]}」が{method}された');return True
-    if not any(q['alive'] and q['role']=='investigator' for q in r['players']):
-        declare(r,'kira','捜査員が全員脱落した');return True
+    if not any(q['alive'] and q['role'] in ('investigator','watari','gevanni') for q in r['players']):
+        declare(r,'kira','L以外のL陣営が全員脱落した');return True
     return False
 
 def begin_discussion(r):
@@ -119,6 +119,12 @@ def resolve_nomination(r):
         if t and t['alive'] and not t.get('cleared',False) and actor and actor['alive']:
             before=t['suspicion']; t['suspicion']=before+act['delta']*power
             sign=f'+{power}' if act['delta']>0 else f'-{power}'
+            r.setdefault('dailyNominations',[]).append({
+                'day':r['day'],'round':r['round'],
+                'actorId':actor['id'],'actor':actor['name'],
+                'targetId':t['id'],'target':t['name'],
+                'change':act['delta']*power
+            })
             addlog(r,f'{actor["name"]} → {t["name"]}：疑惑度{sign}（{before}→{t["suspicion"]}）')
     r['reveal']={'kind':'nomination','text':f'{r["round"]}回目の指名結果','sub':'指名内容は履歴から確認できます'}
     r['stage']='result';r['next']='discussion' if r['round']<3 else 'arrest';r['deadline']=time.time()+4
@@ -206,7 +212,7 @@ def advance(r):
     if nxt=='discussion':r['round']+=1;begin_discussion(r)
     elif nxt=='arrest':arrest(r)
     elif nxt=='night':begin_night(r)
-    elif nxt=='newday':r['day']+=1;r['round']=1;begin_discussion(r)
+    elif nxt=='newday':r['day']+=1;r['round']=1;r['dailyNominations']=[];begin_discussion(r)
 
 def setup(r):
     opt=r['options'];n=opt['size'];humans=[p for p in r['players'] if not p['npc']]
@@ -222,11 +228,9 @@ def setup(r):
     random.shuffle(roles)
     for p,role in zip(r['players'],roles):
         p.update(role=role,alive=True,suspicion=0,cleared=False,investigations=[],lastGuard=None,guardedSuccess=set())
-    r.update(day=1,round=1,winner=None,actions={},reveal=None,publicInfo=[],gameId=uid(8))
+    r.update(day=1,round=1,winner=None,actions={},reveal=None,publicInfo=[],dailyNominations=[],gameId=uid(8))
     addlog(r,'ゲーム開始。役職を配布しました')
-    # A game with no investigator would immediately satisfy the extermination condition.
-    if not any(p['role']=='investigator' for p in r['players']):
-        declare(r,'kira','捜査員が配置されていない');return
+    # The role configuration always ensures at least one investigator.
     r['stage']='role_reveal';r['deadline']=time.time()+12
 
 def makeplayer(id,name,npc,ws):
@@ -246,7 +250,7 @@ async def socket(request):
                 if not code:
                     code=''.join(random.choices(string.ascii_uppercase+string.digits,k=6))
                     while code in ROOMS:code=''.join(random.choices(string.ascii_uppercase+string.digits,k=6))
-                    ROOMS[code]={'code':code,'players':[],'host':None,'stage':'lobby','options':options_from({}),'day':0,'round':0,'deadline':None,'actions':{},'log':[],'publicInfo':[],'reveal':None,'winner':None,'next':''}
+                    ROOMS[code]={'code':code,'players':[],'host':None,'stage':'lobby','options':options_from({}),'day':0,'round':0,'deadline':None,'actions':{},'log':[],'publicInfo':[],'dailyNominations':[],'reveal':None,'winner':None,'next':''}
                 room=ROOMS.get(code)
                 if not room:raise ValueError('部屋が見つかりません')
                 me=who(room,token) if token else None
@@ -301,10 +305,25 @@ async def socket(request):
                 room['actions'][me['id']]={'target':target['id'] if target else None}
                 maybe_night(room);broadcast(room)
             elif kind=='return':
-                if room['host']!=me['id'] or room['stage']!='ended':raise ValueError('操作できません')
-                room['players']=[p for p in room['players'] if not p['npc']];room.update(stage='lobby',winner=None,reveal=None,deadline=None,log=[],publicInfo=[],next='')
-                for p in room['players']:p['role']=None;p['alive']=True
+                # Only the host can reset the shared game. Available from every stage.
+                if room['host']!=me['id']:raise ValueError('待機部屋への全員移動はホストのみ操作できます')
+                room['players']=[p for p in room['players'] if not p['npc'] and p['ws'] is not None]
+                room.update(stage='lobby',day=0,round=0,gameId=None,winner=None,reveal=None,deadline=None,
+                            log=[],publicInfo=[],dailyNominations=[],actions={},next='')
+                for p in room['players']:
+                    p.update(role=None,alive=True,suspicion=0,cleared=False,investigations=[],lastGuard=None,guardedSuccess=set())
                 broadcast(room)
+            elif kind=='leave':
+                # Leaving the room does not interrupt anyone else's game.
+                if room['stage']=='lobby':room['players']=[p for p in room['players'] if p!=me]
+                me['ws']=None
+                if room['host']==me['id']:
+                    replacements=[p for p in room['players'] if not p['npc'] and p['ws'] is not None]
+                    room['host']=replacements[0]['id'] if replacements else None
+                if room['stage']=='lobby' and not room['players']:ROOMS.pop(room['code'],None)
+                else:broadcast(room)
+                await send(ws,{'type':'left'})
+                room=None;me=None
             else:raise ValueError('操作が無効です')
         except Exception as exc:await send(ws,{'type':'error','message':str(exc)})
     if me and me.get('ws')==ws:
