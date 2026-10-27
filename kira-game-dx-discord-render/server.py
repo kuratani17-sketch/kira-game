@@ -23,18 +23,31 @@ def addlog(r, s):
 def living(r): return [p for p in r['players'] if p['alive']]
 def who(r, pid): return next((p for p in r['players'] if p['id']==pid),None)
 def byrole(r, role): return next((p for p in r['players'] if p['role']==role), None)
+def candidates(r): return [p for p in living(r) if not p.get('cleared',False)]
 
 def view(r,p):
-    aware = []
+    aware = {}
     if r['stage']!='lobby':
-        if p['role']=='follower': aware = [q['id'] for q in r['players'] if q['role']=='kira']
-        if p['role']=='watari': aware = [q['id'] for q in r['players'] if q['role']=='l']
+        aware[p['id']]=p['role']
+        if p['role']=='follower':
+            aware.update({q['id']: 'kira' for q in r['players'] if q['role']=='kira'})
+        if p['role']=='watari':
+            aware.update({q['id']: 'l' for q in r['players'] if q['role']=='l'})
+    def player_view(q):
+        result={'id':q['id'],'name':q['name'],'npc':q['npc'],'alive':q['alive'],
+                'suspicion':q['suspicion'],'cleared':q.get('cleared',False)}
+        if r['stage']=='ended' or (not q['alive'] and r['options'].get('revealRolesOnDeath',True)):
+            result['role']=q['role']
+        elif q['id'] in aware:
+            result['role']=aware[q['id']]
+        return result
     return {
-      'code':r['code'],'host':r['host']==p['id'],'self':p['id'],'stage':r['stage'],'day':r['day'],
-      'round':r['round'],'deadline':r['deadline'],'options':r['options'],
-      'players':[{'id':q['id'],'name':q['name'],'npc':q['npc'],'alive':q['alive'],'suspicion':q['suspicion'],
-                  **({'role':q['role']} if r['stage']=='ended' else {})} for q in r['players']],
-      'myRole':p['role'],'known':aware,'investigations':p['investigations'],
+      'code':r['code'],'gameId':r.get('gameId'),'host':r['host']==p['id'],'self':p['id'],
+      'stage':r['stage'],'day':r['day'],'round':r['round'],
+      'deadline':r['deadline'],'options':r['options'],
+      'players':[player_view(q) for q in r['players']],
+      'myRole':p['role'],'known':[qid for qid in aware if qid!=p['id']],
+      'investigations':p['investigations'],
       'log':r['log'],'publicInfo':r.get('publicInfo',[]),'reveal':r['reveal'],'winner':r['winner'],
       'hasActed':p['id'] in r['actions'],'lastGuard':p['lastGuard'],
       'hostOptions':r['options'], 'next':r.get('next', '')
@@ -48,7 +61,8 @@ def options_from(raw):
     if f+w+g > n-3: raise ValueError('捜査員を最低1人残してください')
     return {'size':n,'follower':f,'watari':w,'gevanni':g,
             'discussion':max(15,min(900,int(raw.get('discussion',90)))),
-            'night':max(10,min(300,int(raw.get('night',30))))}
+            'night':max(10,min(300,int(raw.get('night',30)))),
+            'revealRolesOnDeath':raw.get('revealRolesOnDeath',True) is not False}
 
 def declare(r, winner, reason):
     r['winner']=winner; r['stage']='ended';r['deadline']=None
@@ -74,7 +88,7 @@ def begin_nomination(r):
     if len(r['actions'])==len(living(r)): resolve_nomination(r)
 
 def npc_nominate(r,p):
-    others=[q for q in living(r) if q!=p]
+    others=[q for q in candidates(r) if q!=p]
     if not others: return None
     target=None; delta=None
     if p['role']=='follower':
@@ -85,7 +99,7 @@ def npc_nominate(r,p):
             pool=[q for q in others if q['role']!='kira'];target=random.choice(pool or others);delta=1
     elif p['role']=='watari':
         l=byrole(r,'l')
-        if l and l['alive'] and l!=p and random.random()<.5:
+        if l and l in others and random.random()<.5:
             target=l;delta=-1
         else:
             pool=[q for q in others if q['role']!='l'];target=random.choice(pool or others);delta=1
@@ -98,24 +112,29 @@ def npc_nominate(r,p):
     return {'target':target['id'],'delta':delta}
 
 def resolve_nomination(r):
+    power=r['day']
     for pid,act in list(r['actions'].items()):
         if not act:continue
         t=who(r,act['target']);actor=who(r,pid)
-        if t and t['alive'] and actor and actor['alive']:
-            before=t['suspicion']; t['suspicion']=before+act['delta']
-            sign='+1' if act['delta']>0 else '-1'
+        if t and t['alive'] and not t.get('cleared',False) and actor and actor['alive']:
+            before=t['suspicion']; t['suspicion']=before+act['delta']*power
+            sign=f'+{power}' if act['delta']>0 else f'-{power}'
             addlog(r,f'{actor["name"]} → {t["name"]}：疑惑度{sign}（{before}→{t["suspicion"]}）')
     r['reveal']={'kind':'nomination','text':f'{r["round"]}回目の指名結果','sub':'指名内容は履歴から確認できます'}
     r['stage']='result';r['next']='discussion' if r['round']<3 else 'arrest';r['deadline']=time.time()+4
 
 def arrest(r):
-    a=living(r)
+    a=candidates(r)
     if not a:return
     m=max(p['suspicion'] for p in a)
     t=random.choice([p for p in a if p['suspicion']==m])
     t['alive']=False
-    r['reveal']={'kind':'arrest','team':('kira' if t['role'] in ('kira','follower') else 'l'),'text':f'{t["name"]}を検挙！','sub':f'疑惑度 {m} ／ 役職：{ROLES[t["role"]]}' }
-    addlog(r,f'【検挙】{t["name"]}（疑惑度{m}／役職：{ROLES[t["role"]]}）')
+    showrole=r['options'].get('revealRolesOnDeath',True)
+    role_text=f' ／ 役職：{ROLES[t["role"]]}' if showrole else ''
+    r['reveal']={'kind':'arrest','text':f'{t["name"]}を検挙！',
+                 'sub':f'疑惑度 {m}{role_text}'}
+    if showrole:r['reveal']['team']='kira' if t['role'] in ('kira','follower') else 'l'
+    addlog(r,f'【検挙】{t["name"]}（疑惑度{m}{role_text}）')
     if finish_if(r,t,'検挙'): return
     r['stage']='result';r['next']='night';r['deadline']=time.time()+6
 
@@ -155,19 +174,24 @@ def resolve_night(r):
     guarded=[p for p in living(r) if p['role']=='gevanni' and r['actions'].get(p['id'],{}).get('target')== (victim['id'] if victim else None)]
     if victim and victim['alive'] and victim!=kira and not guarded:
         victim['alive']=False
-        addlog(r,f'【裁き】{victim["name"]}が脱落（役職：{ROLES[victim["role"]]}）')
+        showrole=r['options'].get('revealRolesOnDeath',True)
+        role_text=f' ／ 役職：{ROLES[victim["role"]]}' if showrole else ''
+        addlog(r,f'【裁き】{victim["name"]}が脱落{role_text}')
+        disclosed=None
         if victim['role']!='l':
-            # Prefer a living, not-yet-revealed person; every reveal persists in the Public Info panel.
-            already={item['playerId'] for item in r.get('publicInfo',[])}
-            pool=[p for p in living(r) if p['role']!='kira' and p!=victim]
-            unseen=[p for p in pool if p['id'] not in already]
+            # 公開対象は必ず生存者、かつ非キラ。未公開者を優先する。
+            pool=[p for p in living(r) if p['role']!='kira']
+            unseen=[p for p in pool if not p.get('cleared',False)]
             disclosed=random.choice(unseen or pool) if pool else None
-            info=f' ／ キラではない人物：{disclosed["name"]}' if disclosed else ''
-        else:info=''
-        r['reveal']={'kind':'judgment','team':('kira' if victim['role'] in ('kira','follower') else 'l'),'text':f'{victim["name"]}が裁かれた！','sub':f'役職：{ROLES[victim["role"]]}{info}'}
-        if victim['role']!='l' and disclosed:
+        info=f' ／ 公開情報：{disclosed["name"]}はキラではない' if disclosed else ''
+        r['reveal']={'kind':'judgment', 'text':f'{victim["name"]}が裁かれた！',
+                     'sub':f'{"役職："+ROLES[victim["role"]] if showrole else "脱落者が発表されました"}{info}'}
+        if showrole:r['reveal']['team']='kira' if victim['role'] in ('kira','follower') else 'l'
+        if disclosed and not disclosed.get('cleared',False):
+            disclosed['cleared']=True
+            disclosed['suspicion']=0
             r['publicInfo'].append({'day':r['day'],'playerId':disclosed['id'],
-                                    'text':f'{disclosed["name"]}はキラではない'})
+                                    'text':f'{disclosed["name"]}はキラではない（キラ候補から除外・疑惑度0）'})
         if finish_if(r,victim,'裁き'):return
     else:
         if guarded:
@@ -197,16 +221,16 @@ def setup(r):
     roles=['kira','l']+['follower']*opt['follower']+['watari']*opt['watari']+['gevanni']*opt['gevanni']+['investigator']*(n-2-opt['follower']-opt['watari']-opt['gevanni'])
     random.shuffle(roles)
     for p,role in zip(r['players'],roles):
-        p.update(role=role,alive=True,suspicion=0,investigations=[],lastGuard=None,guardedSuccess=set())
-    r.update(day=1,round=1,winner=None,actions={},reveal=None,publicInfo=[])
+        p.update(role=role,alive=True,suspicion=0,cleared=False,investigations=[],lastGuard=None,guardedSuccess=set())
+    r.update(day=1,round=1,winner=None,actions={},reveal=None,publicInfo=[],gameId=uid(8))
     addlog(r,'ゲーム開始。役職を配布しました')
     # A game with no investigator would immediately satisfy the extermination condition.
     if not any(p['role']=='investigator' for p in r['players']):
         declare(r,'kira','捜査員が配置されていない');return
-    begin_discussion(r)
+    r['stage']='role_reveal';r['deadline']=time.time()+12
 
 def makeplayer(id,name,npc,ws):
-    return {'id':id,'name':name,'npc':npc,'ws':ws,'alive':True,'role':None,'suspicion':0,'investigations':[],'lastGuard':None,'guardedSuccess':set()}
+    return {'id':id,'name':name,'npc':npc,'ws':ws,'alive':True,'role':None,'suspicion':0,'cleared':False,'investigations':[],'lastGuard':None,'guardedSuccess':set()}
 
 async def socket(request):
     ws=web.WebSocketResponse(heartbeat=20,max_msg_size=10000);await ws.prepare(request)
@@ -253,7 +277,13 @@ async def socket(request):
             elif kind=='nominate':
                 if room['stage']!='nomination' or not me['alive'] or me['id'] in room['actions']:raise ValueError('現在は指名できません')
                 target=who(room,data.get('target'));delta=data.get('delta')
-                if not target or not target['alive'] or target==me or delta not in [-1,1]:raise ValueError('指名対象が無効です')
+                if delta not in [-1,1]:raise ValueError('指名内容が無効です')
+                possible=[q for q in candidates(room) if q!=me]
+                if not possible and target is None:
+                    room['actions'][me['id']]=None
+                    if len(room['actions'])==len(living(room)):resolve_nomination(room)
+                    broadcast(room);continue
+                if not target or target not in possible:raise ValueError('指名対象が無効です')
                 room['actions'][me['id']]={'target':target['id'],'delta':delta}
                 if len(room['actions'])==len(living(room)):resolve_nomination(room)
                 broadcast(room)
@@ -292,7 +322,8 @@ async def loop(app):
         now=time.time()
         for r in list(ROOMS.values()):
             if r['deadline'] and now>=r['deadline']:
-                if r['stage']=='discussion':begin_nomination(r)
+                if r['stage']=='role_reveal':begin_discussion(r)
+                elif r['stage']=='discussion':begin_nomination(r)
                 elif r['stage']=='nomination':
                     for p in living(r):
                         if p['id'] not in r['actions']:r['actions'][p['id']]=npc_nominate(r,p)
