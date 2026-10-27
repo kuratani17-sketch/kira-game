@@ -5,6 +5,7 @@ from aiohttp import web, WSMsgType
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ROOMS = {}
 ROLES = {'kira':'キラ','follower':'崇拝者','l':'L','investigator':'捜査員','watari':'ワタリ','gevanni':'ジェバンニ'}
+NPC_NAMES = ('夜神','竜崎','相沢','模木','松田','魅上','伊出','音原田','渋井丸','火口','弥','ペンバー','南空','マット')
 MAX_PLAYERS = 12
 
 def uid(n=16): return secrets.token_urlsafe(n)
@@ -107,8 +108,9 @@ def npc_nominate(r,p):
         targets=[q for q in others if any(x['target']==q['id'] and x['result'] for x in p['investigations'])]
         if targets: target=random.choice(targets);delta=1
     if target is None:
-        target=random.choice(others);delta=random.choice([-1,1])
-        if p['role']=='gevanni' and target['id'] in p['guardedSuccess'] and delta==-1:delta=1
+        # ジェバンニも対象自体はランダム。救った相手が選ばれた場合は必ず疑惑度を下げる。
+        target=random.choice(others)
+        delta=-1 if p['role']=='gevanni' and target['id'] in p['guardedSuccess'] else random.choice([-1,1])
     return {'target':target['id'],'delta':delta}
 
 def resolve_nomination(r):
@@ -185,8 +187,9 @@ def resolve_night(r):
         addlog(r,f'【裁き】{victim["name"]}が脱落{role_text}')
         disclosed=None
         if victim['role']!='l':
-            # 公開対象は必ず生存者、かつ非キラ。未公開者を優先する。
-            pool=[p for p in living(r) if p['role']!='kira']
+            # Lを裁けなかった場合、公開できるのは生存中のL陣営だけ。
+            # 崇拝者を公開して、誤ってキラ候補から除外してしまわない。
+            pool=[p for p in living(r) if p['role'] not in ('kira','follower')]
             unseen=[p for p in pool if not p.get('cleared',False)]
             disclosed=random.choice(unseen or pool) if pool else None
         info=f' ／ 公開情報：{disclosed["name"]}はキラではない' if disclosed else ''
@@ -219,11 +222,11 @@ def setup(r):
     if len(humans)>n:raise ValueError('参加人数が設定人数を超えています')
     r['players']=humans
     used={p['name'] for p in humans}
-    names=['夜神','竜崎','相沢','模木','松田','ワタリ','魅上','高田','メロ','ニア','伊出','宇生田']
-    for name in names:
-        if len(r['players'])>=n:break
-        label=name if name not in used else f'{name}(NPC)'
-        r['players'].append(makeplayer(uid(),label,True,None))
+    available_names=[name for name in NPC_NAMES if name not in used]
+    needed=n-len(humans)
+    if len(available_names)<needed:raise ValueError('NPCの名前が足りません')
+    for name in random.sample(available_names,needed):
+        r['players'].append(makeplayer(uid(),name,True,None))
     roles=['kira','l']+['follower']*opt['follower']+['watari']*opt['watari']+['gevanni']*opt['gevanni']+['investigator']*(n-2-opt['follower']-opt['watari']-opt['gevanni'])
     random.shuffle(roles)
     for p,role in zip(r['players'],roles):
