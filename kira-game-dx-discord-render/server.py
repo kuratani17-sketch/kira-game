@@ -7,10 +7,12 @@ ROOMS = {}
 ROLES = {'kira':'キラ','follower':'崇拝者','l':'L','investigator':'捜査員','watari':'ワタリ','gevanni':'ジェバンニ'}
 NPC_NAMES = ('夜神','竜崎','相沢','模木','松田','魅上','伊出','音原田','渋井丸','火口','弥','ペンバー','南空','マット')
 MAX_PLAYERS = 12
+VERSION = '0.7.0'
+MAX_SPECTATORS = 30
 
 def uid(n=16): return secrets.token_urlsafe(n)
 def broadcast(room):
-    for p in room['players']:
+    for p in room['players'] + room.get('spectators', []):
         if p['ws'] is not None:
             asyncio.create_task(send(p['ws'], {'type':'state','data':view(room,p)}))
 async def send(ws,data):
@@ -27,13 +29,19 @@ def byrole(r, role): return next((p for p in r['players'] if p['role']==role), N
 def candidates(r): return [p for p in living(r) if not p.get('cleared',False)]
 
 def view(r,p):
+    spectator = p.get('spectator',False)
+    # 脱落したプレイヤーも全役職を確認して観戦できる。
+    watching = spectator or (r['stage'] != 'lobby' and not p['alive'])
     aware = {}
-    if r['stage']!='lobby':
-        aware[p['id']]=p['role']
-        if p['role']=='follower':
-            aware.update({q['id']: 'kira' for q in r['players'] if q['role']=='kira'})
-        if p['role']=='watari':
-            aware.update({q['id']: 'l' for q in r['players'] if q['role']=='l'})
+    if r['stage'] != 'lobby':
+        if watching:
+            aware.update({q['id']:q['role'] for q in r['players']})
+        else:
+            aware[p['id']] = p['role']
+            if p['role'] == 'follower':
+                aware.update({q['id']:'kira' for q in r['players'] if q['role']=='kira'})
+            if p['role'] == 'watari':
+                aware.update({q['id']:'l' for q in r['players'] if q['role']=='l'})
     def player_view(q):
         result={'id':q['id'],'name':q['name'],'npc':q['npc'],'alive':q['alive'],
                 'suspicion':q['suspicion'],'cleared':q.get('cleared',False)}
@@ -43,12 +51,15 @@ def view(r,p):
             result['role']=aware[q['id']]
         return result
     return {
-      'code':r['code'],'gameId':r.get('gameId'),'host':r['host']==p['id'],'self':p['id'],
+      'version':VERSION,'code':r['code'],'gameId':r.get('gameId'),
+      'host':r['host']==p['id'],'self':p['id'],'spectator':spectator,'watching':watching,
+      'spectators':[{'id':q['id'],'name':q['name']} for q in r.get('spectators',[])],
       'stage':r['stage'],'day':r['day'],'round':r['round'],
       'deadline':r['deadline'],'options':r['options'],
       'players':[player_view(q) for q in r['players']],
-      'myRole':p['role'],'known':[qid for qid in aware if qid!=p['id']],
-      'investigations':p['investigations'],
+      'myRole':None if spectator else p['role'],'known':[qid for qid in aware if qid!=p['id']],
+      # 調査記録はL本人のみに送る。観戦者には各プレイヤーの役職のみ公開する。
+      'investigations':p['investigations'] if not spectator else [],
       'log':r['log'],'publicInfo':r.get('publicInfo',[]),'dailyNominations':r.get('dailyNominations',[]),'reveal':r['reveal'],'winner':r['winner'],
       'hasActed':p['id'] in r['actions'],'lastGuard':p['lastGuard'],
       'hostOptions':r['options'], 'next':r.get('next', '')
@@ -236,8 +247,8 @@ def setup(r):
     # The role configuration always ensures at least one investigator.
     r['stage']='role_reveal';r['deadline']=time.time()+12
 
-def makeplayer(id,name,npc,ws):
-    return {'id':id,'name':name,'npc':npc,'ws':ws,'alive':True,'role':None,'suspicion':0,'cleared':False,'investigations':[],'lastGuard':None,'guardedSuccess':set()}
+def makeplayer(id,name,npc,ws,spectator=False):
+    return {'id':id,'name':name,'npc':npc,'spectator':spectator,'ws':ws,'alive':True,'role':None,'suspicion':0,'cleared':False,'investigations':[],'lastGuard':None,'guardedSuccess':set()}
 
 async def socket(request):
     ws=web.WebSocketResponse(heartbeat=20,max_msg_size=10000);await ws.prepare(request)
@@ -250,31 +261,37 @@ async def socket(request):
                 code=str(data.get('code','')).strip().upper()
                 name=str(data.get('name','プレイヤー')).strip()[:20] or 'プレイヤー'
                 token=str(data.get('token',''))[:80]
+                as_spectator=data.get('spectator') is True
                 if not code:
+                    if as_spectator:raise ValueError('観戦するには部屋コードを入力してください')
                     code=''.join(random.choices(string.ascii_uppercase+string.digits,k=6))
                     while code in ROOMS:code=''.join(random.choices(string.ascii_uppercase+string.digits,k=6))
-                    ROOMS[code]={'code':code,'players':[],'host':None,'stage':'lobby','options':options_from({}),'day':0,'round':0,'deadline':None,'actions':{},'log':[],'publicInfo':[],'dailyNominations':[],'reveal':None,'winner':None,'next':''}
+                    ROOMS[code]={'code':code,'players':[],'spectators':[],'host':None,'stage':'lobby','options':options_from({}),'day':0,'round':0,'deadline':None,'actions':{},'log':[],'publicInfo':[],'dailyNominations':[],'reveal':None,'winner':None,'next':''}
                 room=ROOMS.get(code)
                 if not room:raise ValueError('部屋が見つかりません')
-                me=who(room,token) if token else None
-                if me and me['npc']:me=None
+                me=next((q for q in room['players'] + room.get('spectators',[]) if q['id']==token and not q['npc']),None) if token else None
                 if me:
                     if me['ws'] and me['ws']!=ws:await me['ws'].close()
                     me['ws']=ws
+                elif as_spectator:
+                    if len(room['spectators'])>=MAX_SPECTATORS:raise ValueError('観戦者が満員です')
+                    me=makeplayer(uid(),name,False,ws,spectator=True)
+                    room['spectators'].append(me)
                 else:
-                    if room['stage']!='lobby':raise ValueError('開始済みの部屋には新規参加できません')
+                    if room['stage']!='lobby':raise ValueError('開始済みの部屋にはプレイヤーとして新規参加できません。観戦モードを選択してください')
                     if len([p for p in room['players'] if not p['npc']])>=room['options']['size']:raise ValueError('満員です')
                     me=makeplayer(uid(),name,False,ws);room['players'].append(me)
                     if not room['host']:room['host']=me['id']
-                await send(ws,{'type':'joined','code':room['code'],'token':me['id']});broadcast(room)
+                await send(ws,{'type':'joined','code':room['code'],'token':me['id'],'spectator':me.get('spectator',False)})
+                broadcast(room)
             elif not room or not me:raise ValueError('先に部屋へ参加してください')
             elif kind=='config':
-                if room['stage']!='lobby' or room['host']!=me['id']:raise ValueError('設定権限がありません')
+                if me.get('spectator') or room['stage']!='lobby' or room['host']!=me['id']:raise ValueError('設定権限がありません')
                 opts=options_from(data.get('options',{}))
-                if opts['size']<len(room['players']):raise ValueError('現在の参加者数より少なくできません')
+                if opts['size']<len(room['players']):raise ValueError('現在のプレイヤー数より少なくできません')
                 room['options']=opts;broadcast(room)
             elif kind=='start':
-                if room['stage']!='lobby' or room['host']!=me['id']:raise ValueError('開始権限がありません')
+                if me.get('spectator') or room['stage']!='lobby' or room['host']!=me['id']:raise ValueError('開始権限がありません')
                 setup(room);broadcast(room)
             elif kind=='end_discussion':
                 if room['stage']!='discussion' or room['host']!=me['id']:
@@ -282,7 +299,7 @@ async def socket(request):
                 addlog(room,f'【進行】ホストが{room["round"]}回目の議論を終了')
                 begin_nomination(room);broadcast(room)
             elif kind=='nominate':
-                if room['stage']!='nomination' or not me['alive'] or me['id'] in room['actions']:raise ValueError('現在は指名できません')
+                if me.get('spectator') or room['stage']!='nomination' or not me['alive'] or me['id'] in room['actions']:raise ValueError('観戦者・脱落者は指名できません')
                 target=who(room,data.get('target'));delta=data.get('delta')
                 if delta not in [-1,1]:raise ValueError('指名内容が無効です')
                 possible=[q for q in candidates(room) if q!=me]
@@ -295,7 +312,7 @@ async def socket(request):
                 if len(room['actions'])==len(living(room)):resolve_nomination(room)
                 broadcast(room)
             elif kind=='night':
-                if room['stage']!='night' or not me['alive'] or me['id'] in room['actions']:raise ValueError('現在は夜行動できません')
+                if me.get('spectator') or room['stage']!='night' or not me['alive'] or me['id'] in room['actions']:raise ValueError('観戦者・脱落者は夜行動できません')
                 target=who(room,data.get('target'))
                 if me['role'] in ('kira','l','gevanni'):
                     # Kira may explicitly pass the night action. Other active roles need a target.
@@ -309,7 +326,7 @@ async def socket(request):
                 maybe_night(room);broadcast(room)
             elif kind=='return':
                 # Only the host can reset the shared game. Available from every stage.
-                if room['host']!=me['id']:raise ValueError('待機部屋への全員移動はホストのみ操作できます')
+                if me.get('spectator') or room['host']!=me['id']:raise ValueError('待機部屋への全員移動はホストのみ操作できます')
                 room['players']=[p for p in room['players'] if not p['npc'] and p['ws'] is not None]
                 room.update(stage='lobby',day=0,round=0,gameId=None,winner=None,reveal=None,deadline=None,
                             log=[],publicInfo=[],dailyNominations=[],actions={},next='')
@@ -318,12 +335,14 @@ async def socket(request):
                 broadcast(room)
             elif kind=='leave':
                 # Leaving the room does not interrupt anyone else's game.
-                if room['stage']=='lobby':room['players']=[p for p in room['players'] if p!=me]
+                if me.get('spectator'):
+                    room['spectators']=[p for p in room['spectators'] if p!=me]
+                elif room['stage']=='lobby':room['players']=[p for p in room['players'] if p!=me]
                 me['ws']=None
                 if room['host']==me['id']:
                     replacements=[p for p in room['players'] if not p['npc'] and p['ws'] is not None]
                     room['host']=replacements[0]['id'] if replacements else None
-                if room['stage']=='lobby' and not room['players']:ROOMS.pop(room['code'],None)
+                if room['stage']=='lobby' and not room['players'] and not room['spectators']:ROOMS.pop(room['code'],None)
                 else:broadcast(room)
                 await send(ws,{'type':'left'})
                 room=None;me=None
@@ -331,7 +350,11 @@ async def socket(request):
         except Exception as exc:await send(ws,{'type':'error','message':str(exc)})
     if me and me.get('ws')==ws:
         me['ws']=None
-        if room and room['stage']=='lobby':
+        if room and me.get('spectator'):
+            room['spectators']=[p for p in room['spectators'] if p!=me]
+            if room['stage']=='lobby' and not room['players'] and not room['spectators']:ROOMS.pop(room['code'],None)
+            else:broadcast(room)
+        elif room and room['stage']=='lobby':
             room['players']=[p for p in room['players'] if p!=me]
             if room['host']==me['id']:room['host']=room['players'][0]['id'] if room['players'] else None
             if not room['players']:ROOMS.pop(room['code'],None)

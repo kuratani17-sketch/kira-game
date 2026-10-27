@@ -27,9 +27,11 @@
 .presetFooter .note{flex:1;min-width:180px;margin:0}.presetFooter button{font-size:.8rem;padding:8px 10px}
 .presetExtra{color:#b4c4da;font-size:.77rem;margin-top:9px}.presetExtra summary{cursor:pointer;color:#c8dbff;font-weight:750}.presetExtra p{margin:6px 0 0}
 @media(max-width:740px){.presetPanel{padding:9px;margin:10px 0}.presetTop h3{font-size:.95rem}.presetSelected{font-size:.78rem;padding:7px}.presetTable{font-size:.73rem}.presetTable th,.presetTable td{padding:7px 8px}}
-</style></head><body><div class="wrap"><header class="header"><div><div class="brand">キラゲーム <b>DX</b></div></div><div class="headerActions"><span class="badge" id="connection">未接続</span><button class="secondary small hidden" id="returnLobby" title="ホストが全員を待機部屋に戻す">待機部屋へ</button><button class="small hidden" id="leaveRoom" title="自分だけ退出する">退出</button></div></header>
-<section class="panel" id="entry"><h2>部屋を作成 / 参加</h2><label for="nickname">あなたの表示名</label><input id="nickname" maxlength="20" placeholder="プレイヤー"/><div class="two"><div><label for="roomcode">部屋コード（新規作成は空欄）</label><input id="roomcode" maxlength="6" placeholder="ABC123"/></div><div style="display:flex;align-items:end"><button class="primary full" id="join">入室する</button></div></div><p class="muted">5〜12人対戦。1人から遊べて、不足人数はNPCが補充。会話にはDiscordを使用してね。</p></section>
-<section class="panel hidden" id="lobby"><h2>待機部屋 <span id="code" style="color:#f4d385"></span></h2><p id="lobbyPeople"></p><div id="hostSettings"><h3>ゲーム設定</h3><div class="three"><div><label for="size">プレイヤー人数</label><input id="size" max="12" min="5" type="number" value="5"/></div><div><label for="follower">崇拝者</label><input id="follower" min="0" type="number" value="1"/></div><div><label for="watari">ワタリ</label><input id="watari" min="0" type="number" value="0"/></div><div><label for="gevanni">ジェバンニ</label><input id="gevanni" min="0" type="number" value="0"/></div><div><label for="discussion">議論時間（秒）</label><input id="discussion" min="15" type="number" value="40"/></div><div><label for="night">夜の時間（秒）</label><input id="night" min="10" type="number" value="20"/></div></div><div class="check-row"><input checked="" id="revealRolesOnDeath" type="checkbox"/><label for="revealRolesOnDeath">脱落時に役職を公開する</label></div><p class="muted" id="remainder"></p><p class="note">キラ・Lは各1人必須。余りは捜査員（最低1人）。開始前に「設定を保存」を押してね。</p><button id="save">設定を保存</button> <button class="primary" id="start">ゲーム開始</button></div><p class="muted hidden" id="guestHelp">ホストがゲームを開始するまで待機してください。</p><section class="presetPanel" aria-labelledby="presetHeading"><div class="presetTop"><h3 id="presetHeading">おすすめ役職配分（5〜10人）</h3><span class="badge" id="presetLabel">人数に合わせて表示</span></div>
+.versionBadge{font-size:.72rem;font-weight:750;color:#a9c4e8;border:1px solid #425577;border-radius:7px;padding:3px 6px;margin-left:5px;vertical-align:middle}.watchBadge{color:#fbd88c!important;background:#3d3447!important;border:1px solid #aa8857}.watchNotice{color:#e7d8a4;font-weight:850}.observerRow{font-size:.83rem;background:#21334a;border:1px solid #3e5570;border-radius:9px;padding:9px;margin-top:7px}.observerToggle{margin:12px 0 4px}.observerToggle input{width:18px;height:18px}.observerTip{font-size:.78rem;color:#bacde8}.statusTag{font-weight:850;color:#f1d693}
+@media(max-width:740px){.brand{font-size:1.08rem;line-height:1.05}.brand .versionBadge{display:block;width:max-content;margin:2px 0 0;padding:1px 4px;font-size:.61rem}.headerActions .badge{max-width:74px;overflow:hidden;text-overflow:ellipsis}}
+</style></head><body><div class="wrap"><header class="header"><div><div class="brand">キラゲーム <b>DX</b><span class="versionBadge" id="version">Ver.0.7.0</span></div></div><div class="headerActions"><span class="badge" id="connection">未接続</span><button class="secondary small hidden" id="returnLobby" title="ホストが全員を待機部屋に戻す">待機部屋へ</button><button class="small hidden" id="leaveRoom" title="自分だけ退出する">退出</button></div></header>
+<section class="panel" id="entry"><h2>部屋を作成 / 参加</h2><label for="nickname">あなたの表示名</label><input id="nickname" maxlength="20" placeholder="プレイヤー"/><div class="two"><div><label for="roomcode">部屋コード（新規作成は空欄）</label><input id="roomcode" maxlength="6" placeholder="ABC123"/></div><div style="display:flex;align-items:end"><button class="primary full" id="join">入室する</button></div></div><div class="check-row observerToggle"><input id="joinAsSpectator" type="checkbox"/><label for="joinAsSpectator">観戦モードで入室する（全役職公開・ゲーム操作なし）</label></div><p class="observerTip">観戦者は参加人数に含まれず、試合中の部屋にも参加できるわ。観戦中に知った役職は対戦者に教えないでね。</p><p class="muted">5〜12人対戦。1人から遊べて、不足人数はNPCが補充。会話にはDiscordを使用してね。</p></section>
+<section class="panel hidden" id="lobby"><h2>待機部屋 <span id="code" style="color:#f4d385"></span></h2><p id="lobbyPeople"></p><div class="observerRow" id="lobbySpectators"></div><div id="hostSettings"><h3>ゲーム設定</h3><div class="three"><div><label for="size">プレイヤー人数</label><input id="size" max="12" min="5" type="number" value="5"/></div><div><label for="follower">崇拝者</label><input id="follower" min="0" type="number" value="1"/></div><div><label for="watari">ワタリ</label><input id="watari" min="0" type="number" value="0"/></div><div><label for="gevanni">ジェバンニ</label><input id="gevanni" min="0" type="number" value="0"/></div><div><label for="discussion">議論時間（秒）</label><input id="discussion" min="15" type="number" value="40"/></div><div><label for="night">夜の時間（秒）</label><input id="night" min="10" type="number" value="20"/></div></div><div class="check-row"><input checked="" id="revealRolesOnDeath" type="checkbox"/><label for="revealRolesOnDeath">脱落時に役職を公開する</label></div><p class="muted" id="remainder"></p><p class="note">キラ・Lは各1人必須。余りは捜査員（最低1人）。開始前に「設定を保存」を押してね。</p><button id="save">設定を保存</button> <button class="primary" id="start">ゲーム開始</button></div><p class="muted hidden" id="guestHelp">ホストがゲームを開始するまで待機してください。</p><section class="presetPanel" aria-labelledby="presetHeading"><div class="presetTop"><h3 id="presetHeading">おすすめ役職配分（5〜10人）</h3><span class="badge" id="presetLabel">人数に合わせて表示</span></div>
 <p class="presetLead">バランスを意識した参考配分よ。人数を変えると、その人数のおすすめが上に表示されるわ。</p>
 <div class="presetSelected" id="presetSelected" aria-live="polite"></div>
 <div class="presetScroll" tabindex="0" aria-label="5〜10人のおすすめ役職配分表。左右にスクロールできます"><table class="presetTable"><thead><tr><th>人数</th><th class="kira">キラ</th><th class="kira">崇拝者</th><th class="lteam">L</th><th class="lteam">捜査員</th><th class="lteam">ワタリ</th><th class="lteam">ジェバンニ</th></tr></thead><tbody id="presetRows"></tbody></table></div>
@@ -46,17 +48,44 @@
 <main class="hidden" id="game"><div id="playFocus"><div class="playBar"><div><div class="phaseText" id="phase"></div><div class="muted" id="round"></div></div><div style="text-align:right"><div class="note">残り時間</div><div class="clock" id="clock">--</div></div></div>
 <div class="roleStrip"><div><span class="muted">あなたの役職：</span><span class="myRole" id="myRole"></span><div class="power" id="myPower"></div></div><div class="known" id="known">他プレイヤーの役職は非公開</div></div>
 <div class="playWorkspace"><section class="focusPanel"><div class="panelHead"><h2>生存者・疑惑度</h2><span class="note" id="susInfo"></span></div><div class="scrollArea" id="players"></div></section><section class="focusPanel"><div class="panelHead"><h2 id="actionTitle">行動</h2><span class="note" id="acted"></span></div><div class="actionText" id="actionHelp"></div><div class="choiceArea" id="actionChoices"></div><div class="deltaRow hidden" id="deltaChoices"><button class="selected" data-delta="1">上げる ＋1</button><button data-delta="-1">下げる −1</button></div><div class="actionFooter"><button class="primary full hidden" id="submitAction">指名を確定</button><button class="secondary full hidden" id="skipNight">今夜は裁きを使わない</button><button class="secondary full hidden" id="endDiscussion">議論を手動終了（ホスト）</button></div></section></div></div>
-<div class="publicAndHistory"><section class="panel"><h2>【公開情報】</h2><div class="note">キラ候補から除外された生存者の情報</div><div class="history" id="publicInfo"></div></section><section class="panel"><h2>公開履歴</h2><div class="history" id="history"></div></section></div><section class="panel"><h2>自分の調査記録</h2><div class="logBox" id="investigations"></div></section></main>
+<div class="publicAndHistory"><section class="panel"><h2>【公開情報】</h2><div class="note">キラ候補から除外された生存者の情報</div><div class="history" id="publicInfo"></div></section><section class="panel"><h2>公開履歴</h2><div class="history" id="history"></div></section></div><section class="panel"><h2 id="investigationTitle">自分の調査記録</h2><div class="logBox" id="investigations"></div></section></main>
 <div class="notice hidden" id="overlay"><div class="noticeBox" id="overlayBox"><div class="noticeKind" id="overlayKind"></div><img alt="役職イラスト" class="noticeArt hidden" id="overlayArt"/><h1 id="overlayTitle"></h1><p class="noticeContent" id="overlaySub"></p><div id="overlayEnd"></div><button class="secondary hidden" id="overlayReturn">待機部屋に戻る</button><button class="primary" id="dismiss">確認した</button></div></div><div class="toast" id="toast"></div></div>
 <script>
 const $=id=>document.getElementById(id);const names={kira:'キラ',follower:'崇拝者',l:'L',investigator:'捜査員',watari:'ワタリ',gevanni:'ジェバンニ'};
 const powers={kira:'裁き：夜に1人を脱落させる（使わない選択も可）',follower:'開始時にキラの正体を知る',l:'調査：夜に1人がキラか確認',investigator:'特殊能力なし',watari:'開始時にLの正体を知る',gevanni:'一晩でやる：夜に1人を守る（同じ人を連続では守れない）'};
+const CLIENT_VERSION='0.7.0';
 let ws,S=null,selected=null,delta=1,lastShownKey='',dismissedKey='',roleSeenGameId='',playingGameId='',lastStage='';
 function faction(r){return ['kira','follower'].includes(r)?'kira':['l','investigator','watari','gevanni'].includes(r)?'lteam':''}
 function safe(s){return String(s??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]))}
 function toast(s){$('toast').textContent=s;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',4000)}
 function send(o){if(ws?.readyState===1)ws.send(JSON.stringify(o));else toast('接続されていません')}
-function enter(){if(ws?.readyState===1)return;const name=$('nickname').value.trim()||'プレイヤー',code=$('roomcode').value.trim().toUpperCase();const proto=location.protocol==='https:'?'wss:':'ws:';ws=new WebSocket(proto+'//'+location.host+'/ws');$('connection').textContent='接続中';ws.onopen=()=>send({type:'join',name,code,token:code===sessionStorage.getItem('dx_code')?sessionStorage.getItem('dx_token'):''});ws.onmessage=ev=>{let m=JSON.parse(ev.data);if(m.type==='error')toast(m.message);if(m.type==='left'){ws.close();ws=null;S=null;playingGameId='';lastShownKey='';dismissedKey='';roleSeenGameId='';selected=null;$('entry').classList.remove('hidden');$('lobby').classList.add('hidden');$('guide').classList.remove('hidden');$('game').classList.add('hidden');$('overlay').classList.add('hidden');$('returnLobby').classList.add('hidden');$('leaveRoom').classList.add('hidden');$('roomcode').value='';$('connection').textContent='未接続';sessionStorage.removeItem('dx_code');sessionStorage.removeItem('dx_token');return;}if(m.type==='joined'){sessionStorage.setItem('dx_code',m.code);sessionStorage.setItem('dx_token',m.token);$('roomcode').value=m.code;$('connection').textContent='部屋 '+m.code}if(m.type==='state'){S=m.data;render()}};ws.onclose=()=>{if(S){$('connection').textContent='切断';if(S.stage!=='ended')toast('接続が切れました。ページ更新して再入室してください')}}}
+function enter(){
+ if(ws?.readyState===1)return;
+ const name=$('nickname').value.trim()||'プレイヤー',code=$('roomcode').value.trim().toUpperCase(),spectator=$('joinAsSpectator').checked;
+ if(spectator&&!code){toast('観戦には部屋コードが必要よ');return}
+ const proto=location.protocol==='https:'?'wss:':'ws:';
+ ws=new WebSocket(proto+'//'+location.host+'/ws');$('connection').textContent='接続中';
+ ws.onopen=()=>send({type:'join',name,code,spectator,token:code===sessionStorage.getItem('dx_code')?sessionStorage.getItem('dx_token'):''});
+ ws.onmessage=ev=>{
+   const m=JSON.parse(ev.data);
+   if(m.type==='error'){
+     toast(m.message);
+     if(!S){ws.close();ws=null;$('connection').textContent='未接続'}
+   }
+   if(m.type==='left'){
+     ws.close();ws=null;S=null;playingGameId='';lastShownKey='';dismissedKey='';roleSeenGameId='';selected=null;
+     $('entry').classList.remove('hidden');$('lobby').classList.add('hidden');$('guide').classList.remove('hidden');$('game').classList.add('hidden');$('overlay').classList.add('hidden');
+     $('returnLobby').classList.add('hidden');$('leaveRoom').classList.add('hidden');$('roomcode').value='';$('connection').textContent='未接続';
+     sessionStorage.removeItem('dx_code');sessionStorage.removeItem('dx_token');return;
+   }
+   if(m.type==='joined'){
+     sessionStorage.setItem('dx_code',m.code);sessionStorage.setItem('dx_token',m.token);$('roomcode').value=m.code;
+     $('joinAsSpectator').checked=!!m.spectator;$('connection').textContent='部屋 '+m.code;
+   }
+   if(m.type==='state'){S=m.data;render()}
+ };
+ ws.onclose=()=>{if(S){$('connection').textContent='切断';if(S.stage!=='ended')toast('接続が切れました。ページ更新して再入室してください')}};
+}
 $('join').onclick=enter;
 function returnToLobby(){if(!S?.host)return;if(window.confirm('進行中のゲームを終了して、全員を待機部屋に戻しますか？'))send({type:'return'})}
 $('returnLobby').onclick=returnToLobby;$('overlayReturn').onclick=returnToLobby;
@@ -98,13 +127,14 @@ function modal(key,kind,title,sub,team='',img='',endButtons=''){
 }
 $('dismiss').onclick=()=>{dismissedKey=lastShownKey;if(lastShownKey.startsWith('role:'))roleSeenGameId=S.gameId;$('overlay').classList.add('hidden')};
 function render(){if(!S)return;
+ $('version').textContent='Ver.'+(S.version||CLIENT_VERSION);
  $('entry').classList.add('hidden');$('returnLobby').classList.toggle('hidden',!(S.host&&S.stage!=='lobby'));$('overlayReturn').classList.toggle('hidden',!(S.host&&S.stage!=='lobby'));$('leaveRoom').classList.remove('hidden');$('lobby').classList.toggle('hidden',S.stage!=='lobby');$('guide').classList.toggle('hidden',S.stage!=='lobby');$('game').classList.toggle('hidden',S.stage==='lobby');$('code').textContent=S.code;
- if(S.stage==='lobby'){$('lobbyPeople').textContent='参加中：'+S.players.map(x=>x.name).join('、')+'（'+S.players.length+'人）';$('hostSettings').classList.toggle('hidden',!S.host);$('guestHelp').classList.toggle('hidden',S.host);numericFields.forEach(id=>{if(document.activeElement!==$(id))$(id).value=S.options[id]});$('revealRolesOnDeath').checked=S.options.revealRolesOnDeath!==false;rest();$('overlay').classList.add('hidden');playingGameId='';return}
+ if(S.stage==='lobby'){$('lobbyPeople').textContent='プレイヤー：'+S.players.map(x=>x.name).join('、')+'（'+S.players.length+'人）';$('lobbySpectators').textContent='観戦者（人数枠に含まれません）：'+(S.spectators?.length?S.spectators.map(x=>x.name).join('、'):'なし')+'（'+(S.spectators?.length||0)+'人）';$('hostSettings').classList.toggle('hidden',!S.host);$('guestHelp').classList.toggle('hidden',S.host);numericFields.forEach(id=>{if(document.activeElement!==$(id))$(id).value=S.options[id]});$('revealRolesOnDeath').checked=S.options.revealRolesOnDeath!==false;rest();$('overlay').classList.add('hidden');playingGameId='';return}
  if(playingGameId!==S.gameId){playingGameId=S.gameId;lastShownKey='';dismissedKey='';selected=null;lastStage=''}
  if(lastStage!==S.stage){lastStage=S.stage;selected=null}
  $('phase').textContent=({role_reveal:'役職配布',discussion:'議論',nomination:'指名',night:'夜の行動',result:'結果発表',ended:'ゲーム終了'})[S.stage]||'準備中';$('round').textContent=`${S.day}日目 / 第${S.round}回（1日3回の議論・指名）`;
- $('myRole').textContent=names[S.myRole]||'不明';$('myRole').className='myRole '+faction(S.myRole);$('myPower').textContent=powers[S.myRole]||'';
- $('known').innerHTML=S.known.length?'確定役職：'+S.known.map(id=>{const p=S.players.find(q=>q.id===id);return `<span class="${faction(p?.role)}">${safe(p?.name)}＝${safe(names[p?.role])}</span>`}).join('、'):'他プレイヤーの役職は非公開';
+ $('myRole').textContent=S.spectator?'観戦モード':S.watching?'脱落・観戦中':(names[S.myRole]||'不明');$('myRole').className='myRole '+(S.watching?'watchNotice':faction(S.myRole));$('myPower').textContent=S.spectator?'全役職を閲覧できます。指名・夜行動はできません。':S.watching?'全役職を閲覧して試合の行方を見守れます。指名・夜行動はできません。':(powers[S.myRole]||'');
+ $('known').innerHTML=S.watching?'<span class="watchNotice">観戦中：全役職公開（推理情報の共有は禁止）</span>':S.known.length?'確定役職：'+S.known.map(id=>{const p=S.players.find(q=>q.id===id);return `<span class="${faction(p?.role)}">${safe(p?.name)}＝${safe(names[p?.role])}</span>`}).join('、'):'他プレイヤーの役職は非公開';
  $('susInfo').textContent=`本日の指名：±${S.day}`;
  const nominations=S.dailyNominations||[];
  const nominationsByTarget=new Map();
@@ -122,16 +152,17 @@ function render(){if(!S)return;
  }).join('');
  $('publicInfo').innerHTML=S.publicInfo?.length?S.publicInfo.slice().reverse().map(x=>`<div>${safe(x.day)}日目：${safe(x.text)}</div>`).join(''):'<div class="empty">まだ公開情報はありません</div>';
  $('history').innerHTML=S.log.length?S.log.slice().reverse().map(x=>`<div>${safe(x)}</div>`).join(''):'<div class="empty">履歴はありません</div>';
+ $('investigationTitle').textContent=S.spectator?'調査記録（観戦者は閲覧不可）':'自分の調査記録';
  $('investigations').innerHTML=S.investigations.length?S.investigations.map(x=>`<div>${safe(x.name)}：<strong class="${x.result?'kira':'lteam'}">${x.result?'キラ':'キラではない'}</strong></div>`).join(''):'<div class="muted">調査結果はありません</div>';
  renderActions();
- if(S.stage==='role_reveal'&&S.gameId!==roleSeenGameId){modal('role:'+S.gameId,'あなたの役職',names[S.myRole],powers[S.myRole],faction(S.myRole),'/static/roles/'+S.myRole+'.webp')}
+ if(S.stage==='role_reveal'&&!S.spectator&&S.gameId!==roleSeenGameId){modal('role:'+S.gameId,'あなたの役職',names[S.myRole],powers[S.myRole],faction(S.myRole),'/static/roles/'+S.myRole+'.webp')}
  else if(S.reveal){const r=S.reveal;modal('event:'+S.gameId+':'+S.day+':'+S.round+':'+JSON.stringify(r),r.kind==='win'?'GAME OVER':r.kind==='arrest'?'検挙':r.kind==='judgment'?'裁きの結果':'指名結果',r.text,r.sub,r.team==='kira'?'kira':r.team==='l'?'lteam':'','','')}
  else if(S.stage!=='role_reveal'&&lastShownKey.startsWith('role:')){$('overlay').classList.add('hidden');lastShownKey=''}
 }
-function renderActions(){const stage=S.stage,nom=stage==='nomination',night=stage==='night',discuss=stage==='discussion',active=!!S.players.find(q=>q.id===S.self)?.alive,canAct=active&&!S.hasActed;
- $('endDiscussion').classList.toggle('hidden',!(discuss&&S.host));$('submitAction').classList.toggle('hidden',!(nom||night)||!canAct);$('skipNight').classList.toggle('hidden',!(night&&canAct&&S.myRole==='kira'));$('deltaChoices').classList.toggle('hidden',!nom);$('acted').textContent=S.hasActed?'行動確定済み':'';
+function renderActions(){const stage=S.stage,nom=stage==='nomination',night=stage==='night',discuss=stage==='discussion',active=!S.watching&&!!S.players.find(q=>q.id===S.self)?.alive,canAct=active&&!S.hasActed;
+ $('endDiscussion').classList.toggle('hidden',!(discuss&&S.host));$('submitAction').classList.toggle('hidden',!(nom||night)||!canAct);$('skipNight').classList.toggle('hidden',!(night&&canAct&&S.myRole==='kira'));$('deltaChoices').classList.toggle('hidden',!nom||S.watching);$('acted').textContent=S.hasActed?'行動確定済み':'';
  const power=night&&['kira','l','gevanni'].includes(S.myRole);
- $('actionTitle').textContent=nom?'指名する':night?'夜の能力':discuss?'議論':'進行状況';$('actionHelp').textContent=S.hasActed?'他のプレイヤーを待っています':nom?`対象を選び、疑惑度を ${S.day} ポイント上下させてください。公開された非キラは選べません。`:night?power?'夜の対象を選んでください。':'夜の能力はありません。待機を確定してください。':discuss?'Discordで自由に議論してください。ホストは早めに終了できます。':'次のフェーズへ自動で移ります。';
+ $('actionTitle').textContent=S.watching?'観戦中':nom?'指名する':night?'夜の能力':discuss?'議論':'進行状況';$('actionHelp').textContent=S.watching?'全役職が公開されています。ほかのプレイヤーに役職情報を伝えず、試合を観戦してね。':S.hasActed?'他のプレイヤーを待っています':nom?`対象を選び、疑惑度を ${S.day} ポイント上下させてください。公開された非キラは選べません。`:night?power?'夜の対象を選んでください。':'夜の能力はありません。待機を確定してください。':discuss?'Discordで自由に議論してください。ホストは早めに終了できます。':'次のフェーズへ自動で移ります。';
  $('actionChoices').innerHTML='';if(!canAct||(!night&&!nom))return;
  const arr=(nom||power)?S.players.filter(q=>q.alive&&(q.id!==S.self||(night&&S.myRole==='gevanni'))&&!(nom&&q.cleared)&&!(night&&S.myRole==='gevanni'&&q.id===S.lastGuard)):[];
  if(!arr.some(q=>q.id===selected))selected=null;
