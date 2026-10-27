@@ -7,7 +7,7 @@ ROOMS = {}
 ROLES = {'kira':'キラ','follower':'崇拝者','l':'L','investigator':'捜査員','watari':'ワタリ','gevanni':'ジェバンニ'}
 NPC_NAMES = ('夜神','竜崎','相沢','模木','松田','魅上','伊出','音原田','渋井丸','火口','弥','ペンバー','南空','マット')
 MAX_PLAYERS = 12
-VERSION = '0.7.0'
+VERSION = '0.7.1'
 MAX_SPECTATORS = 30
 
 def uid(n=16): return secrets.token_urlsafe(n)
@@ -164,9 +164,11 @@ def begin_night(r):
         if p['npc']:
             target=None
             if p['role']=='kira':
-                # 50% chance to abstain, otherwise choose a random living target.
+                # At exactly three survivors, NPC Kira ALWAYS judges someone.
+                # Otherwise, keep the original 50% chance of using judgment.
                 pool=[q for q in living(r) if q!=p]
-                target=random.choice(pool)['id'] if pool and random.choice((True,False)) else None
+                must_judge=(len(living(r))==3)
+                target=random.choice(pool)['id'] if pool and (must_judge or random.choice((True,False))) else None
             elif p['role']=='l':
                 pool=[q for q in living(r) if q!=p and all(x['target']!=q['id'] for x in p['investigations'])]
                 target=random.choice(pool)['id'] if pool else None
