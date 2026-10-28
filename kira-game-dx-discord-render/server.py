@@ -7,7 +7,7 @@ ROOMS = {}
 ROLES = {'kira':'キラ','follower':'崇拝者','believer':'信者','l':'L','investigator':'捜査員','watari':'ワタリ','gevanni':'ジェバンニ'}
 NPC_NAMES = ('夜神','竜崎','相沢','模木','松田','魅上','伊出','音原田','渋井丸','火口','弥','ペンバー','南空','マット')
 MAX_PLAYERS = 12
-VERSION = '0.8.0'
+VERSION = '0.8.2'
 MAX_SPECTATORS = 30
 
 def uid(n=16): return secrets.token_urlsafe(n)
@@ -59,7 +59,7 @@ def view(r,p):
       'players':[player_view(q) for q in r['players']],
       'myRole':None if spectator else p['role'],'known':[qid for qid in aware if qid!=p['id']],
       # 調査記録はL本人のみに送る。観戦者には各プレイヤーの役職のみ公開する。
-      'investigations':p['investigations'] if not spectator else [],
+      'investigations':p['investigations'] if p['role']=='l' and not spectator else [],
       'log':r['log'],'publicInfo':r.get('publicInfo',[]),'dailyNominations':r.get('dailyNominations',[]),'reveal':r['reveal'],'winner':r['winner'],
       'hasActed':p['id'] in r['actions'],'lastGuard':p['lastGuard'],
       'hostOptions':r['options'], 'next':r.get('next', '')

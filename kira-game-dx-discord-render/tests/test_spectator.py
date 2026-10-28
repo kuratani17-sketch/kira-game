@@ -39,7 +39,7 @@ async def main():
         await host.send_json({'type':'start'})
         state=await next_state(host,lambda s:s['stage']=='role_reveal')
         watchstate=await next_state(audience,lambda s:s['stage']=='role_reveal')
-        assert len(state['players'])==5 and sum('role' in x for x in state['players'])==1
+        assert len(state['players'])==5 and sum('role' in x for x in state['players'])==1+len(state['known']) # follower/watari can initially know one additional role
         assert watchstate['watching'] and len(watchstate['players'])==5
         assert all('role' in x for x in watchstate['players'])
         assert watchstate['myRole'] is None

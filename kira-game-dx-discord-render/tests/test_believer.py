@@ -18,7 +18,7 @@ def make_room(size=5, believer=1, follower=0, watari=0, gevanni=0):
     return room
 
 def test_roles_and_rules():
-    assert m.ROLES['believer']=='信者' and m.VERSION=='0.8.0'
+    assert m.ROLES['believer']=='信者' and m.VERSION=='0.8.2'
     r=make_room()
     assert Counter(p['role'] for p in r['players'])==Counter({'kira':1,'l':1,'believer':1,'investigator':2})
     believer=next(p for p in r['players'] if p['role']=='believer')
@@ -54,7 +54,7 @@ def test_roles_and_rules():
     else: raise AssertionError('must retain at least one investigator')
     # Role guide has both descriptions and picture, and the config/presets reflect new field.
     html=(Path(__file__).resolve().parents[1]/'public/index.html').read_text()
-    for x in ('id="believer"','信者 <small>｜キラ陣営','/static/roles/believer.webp','const CLIENT_VERSION=\'0.8.0\'','<th class="kira">信者</th>'):
+    for x in ('id="believer"','信者 <small>｜キラ陣営','/static/roles/believer.webp','const CLIENT_VERSION=\'0.8.2\'','<th class="kira">信者</th>'):
         assert x in html, x
     assert (Path(__file__).resolve().parents[1]/'public/roles/believer.webp').exists()
 
@@ -78,7 +78,7 @@ async def socket_test():
             state=(await recv_until(h,'state'))['data']
             if state['stage']=='role_reveal':break
         assert Counter(p['role'] for p in m.ROOMS[code]['players'])==Counter({'kira':1,'l':1,'believer':2,'investigator':2})
-        assert state['version']=='0.8.0'
+        assert state['version']=='0.8.2'
         assert sum('role' in p for p in state['players'])==1, 'Other roles stay hidden'
         await h.send_json({'type':'return'})
         while True:

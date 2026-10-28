@@ -40,7 +40,7 @@ def run():
         with patch.object(srv.random,'choice',side_effect=lambda arr: arr[0]):
             srv.begin_night(r)
         assert r['actions']['0']['target'] is not None, '4+ should still allow cast'
-    assert srv.VERSION=='0.8.0'
-    print('PASS: 3 survivors always cast, 4-5 survivors retain both possible behaviors, version 0.8.0')
+    assert srv.VERSION=='0.8.2'
+    print('PASS: 3 survivors always cast, 4-5 survivors retain both possible behaviors, version 0.8.2')
 
 if __name__=='__main__':run()
