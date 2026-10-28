@@ -4,10 +4,10 @@ from aiohttp import web, WSMsgType
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ROOMS = {}
-ROLES = {'kira':'キラ','follower':'崇拝者','l':'L','investigator':'捜査員','watari':'ワタリ','gevanni':'ジェバンニ'}
+ROLES = {'kira':'キラ','follower':'崇拝者','believer':'信者','l':'L','investigator':'捜査員','watari':'ワタリ','gevanni':'ジェバンニ'}
 NPC_NAMES = ('夜神','竜崎','相沢','模木','松田','魅上','伊出','音原田','渋井丸','火口','弥','ペンバー','南空','マット')
 MAX_PLAYERS = 12
-VERSION = '0.7.1'
+VERSION = '0.8.0'
 MAX_SPECTATORS = 30
 
 def uid(n=16): return secrets.token_urlsafe(n)
@@ -68,10 +68,11 @@ def view(r,p):
 def options_from(raw):
     n = max(5,min(MAX_PLAYERS,int(raw.get('size',5))))
     f = max(0,min(n-2,int(raw.get('follower',1))))
+    b = max(0,min(n-2,int(raw.get('believer',0))))
     w = max(0,min(n-2,int(raw.get('watari',0))))
     g = max(0,min(n-2,int(raw.get('gevanni',0))))
-    if f+w+g > n-3: raise ValueError('捜査員を最低1人残してください')
-    return {'size':n,'follower':f,'watari':w,'gevanni':g,
+    if f+b+w+g > n-3: raise ValueError('捜査員を最低1人残してください')
+    return {'size':n,'follower':f,'believer':b,'watari':w,'gevanni':g,
             'discussion':max(15,min(900,int(raw.get('discussion',40)))),
             'night':max(10,min(300,int(raw.get('night',20)))),
             'revealRolesOnDeath':raw.get('revealRolesOnDeath',True) is not False}
@@ -152,7 +153,7 @@ def arrest(r):
     role_text=f' ／ 役職：{ROLES[t["role"]]}' if showrole else ''
     r['reveal']={'kind':'arrest','text':f'{t["name"]}を検挙！',
                  'sub':f'疑惑度 {m}{role_text}'}
-    if showrole:r['reveal']['team']='kira' if t['role'] in ('kira','follower') else 'l'
+    if showrole:r['reveal']['team']='kira' if t['role'] in ('kira','follower','believer') else 'l'
     addlog(r,f'【検挙】{t["name"]}（疑惑度{m}{role_text}）')
     if finish_if(r,t,'検挙'): return
     r['stage']='result';r['next']='night';r['deadline']=time.time()+6
@@ -200,15 +201,15 @@ def resolve_night(r):
         addlog(r,f'【裁き】{victim["name"]}が脱落{role_text}')
         disclosed=None
         if victim['role']!='l':
-            # Lを裁けなかった場合、公開できるのは生存中のL陣営だけ。
-            # 崇拝者を公開して、誤ってキラ候補から除外してしまわない。
+            # Lを裁けなかった場合、公開候補は生存中のキラでも崇拝者でもない人。
+            # 信者はキラ陣営だが『キラでも崇拝者でもない』ため公開候補に含む。
             pool=[p for p in living(r) if p['role'] not in ('kira','follower')]
             unseen=[p for p in pool if not p.get('cleared',False)]
             disclosed=random.choice(unseen or pool) if pool else None
         info=f' ／ 公開情報：{disclosed["name"]}はキラではない' if disclosed else ''
         r['reveal']={'kind':'judgment', 'text':f'{victim["name"]}が裁かれた！',
                      'sub':f'{"役職："+ROLES[victim["role"]] if showrole else "脱落者が発表されました"}{info}'}
-        if showrole:r['reveal']['team']='kira' if victim['role'] in ('kira','follower') else 'l'
+        if showrole:r['reveal']['team']='kira' if victim['role'] in ('kira','follower','believer') else 'l'
         if disclosed and not disclosed.get('cleared',False):
             disclosed['cleared']=True
             disclosed['suspicion']=0
@@ -240,7 +241,7 @@ def setup(r):
     if len(available_names)<needed:raise ValueError('NPCの名前が足りません')
     for name in random.sample(available_names,needed):
         r['players'].append(makeplayer(uid(),name,True,None))
-    roles=['kira','l']+['follower']*opt['follower']+['watari']*opt['watari']+['gevanni']*opt['gevanni']+['investigator']*(n-2-opt['follower']-opt['watari']-opt['gevanni'])
+    roles=['kira','l']+['follower']*opt['follower']+['believer']*opt['believer']+['watari']*opt['watari']+['gevanni']*opt['gevanni']+['investigator']*(n-2-opt['follower']-opt['believer']-opt['watari']-opt['gevanni'])
     random.shuffle(roles)
     for p,role in zip(r['players'],roles):
         p.update(role=role,alive=True,suspicion=0,cleared=False,investigations=[],lastGuard=None,guardedSuccess=set())
